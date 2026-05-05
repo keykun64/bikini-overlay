@@ -12,6 +12,7 @@ body{
   overflow:hidden;
 }
 
+/* キャラ */
 #avatar{
   max-width:260px;
   max-height:260px;
@@ -24,22 +25,33 @@ body{
   transform:translateY(-25px) scale(1.08);
 }
 
-#debug{
+/* 開始ボタン */
+#startBtn{
   position:fixed;
   top:10px;
   left:10px;
-  color:red;
+  z-index:10;
+  padding:8px 12px;
   font-size:14px;
+}
+
+/* デバッグ */
+#debug{
+  position:fixed;
+  top:50px;
+  left:10px;
+  font-size:12px;
   font-family:monospace;
   background:white;
-  padding:5px;
+  padding:4px;
 }
 </style>
 </head>
 
 <body>
 
-<div id="debug">loading...</div>
+<button id="startBtn">マイク開始</button>
+<div id="debug">waiting...</div>
 
 <img id="avatar">
 
@@ -52,71 +64,68 @@ const imgs = {
 
 const avatar = document.getElementById("avatar");
 const debug = document.getElementById("debug");
+const btn = document.getElementById("startBtn");
 
 avatar.src = imgs.idle;
 
 let mode = "idle";
+let ctx, analyser, data;
 
-// マイク開始
-async function startMic(){
+// ★クリックで開始（重要）
+btn.onclick = async () => {
+  btn.disabled = true;
 
-  try{
+  try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false
-      }
+      audio: true
     });
 
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx();
-
-    await ctx.resume(); // ←重要
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    await ctx.resume();
 
     const src = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser();
+    analyser = ctx.createAnalyser();
 
     analyser.fftSize = 256;
     src.connect(analyser);
 
-    const data = new Uint8Array(analyser.frequencyBinCount);
+    data = new Uint8Array(analyser.frequencyBinCount);
 
-    function loop(){
-      analyser.getByteFrequencyData(data);
-
-      const avg = data.reduce((a,b)=>a+b,0)/data.length;
-
-      debug.innerText = "avg: " + avg.toFixed(2);
-
-      // ★かなり低感度にして確実に反応させる
-      let newMode = "idle";
-
-      if(avg > 20){
-        newMode = "shout";
-      } else if(avg > 5){
-        newMode = "talk";
-      }
-
-      if(newMode !== mode){
-        mode = newMode;
-        avatar.src = imgs[mode];
-      }
-
-      avatar.className = (mode === "shout") ? "jump" : "";
-
-      requestAnimationFrame(loop);
-    }
+    btn.style.display = "none";
 
     loop();
 
   } catch(e){
-    debug.innerText = "mic error: " + e.message;
+    debug.innerText = "mic error: " + e.name + "\n" + e.message;
     console.error(e);
   }
-}
+};
 
-startMic();
+function loop(){
+  analyser.getByteFrequencyData(data);
+
+  const avg = data.reduce((a,b)=>a+b,0)/data.length;
+
+  debug.innerText = "avg: " + avg.toFixed(2);
+
+  // ★現実的な感度（ここが重要）
+  let newMode = "idle";
+
+  if(avg > 20){
+    newMode = "shout";
+  } else if(avg > 5){
+    newMode = "talk";
+  }
+
+  if(newMode !== mode){
+    mode = newMode;
+    avatar.src = imgs[mode];
+  }
+
+  avatar.className = (mode === "shout") ? "jump" : "";
+
+  requestAnimationFrame(loop);
+}
 </script>
 
 </body>
