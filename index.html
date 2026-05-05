@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ビキニタウン配信ツール</title>
+
+<style>
+body{
+  margin:0;
+  background:transparent;
+  overflow:hidden;
+}
+
+#avatar{
+  max-width:260px;
+  max-height:260px;
+  transition:transform 0.08s ease;
+  user-select:none;
+  -webkit-user-drag:none;
+}
+
+.jump{
+  transform:translateY(-25px) scale(1.08);
+}
+
+#ui{
+  display:none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="ui"></div>
+
+<img id="avatar">
+
+<script>
+const imgs = {
+  idle: "idle.png",
+  talk: "talk.png",
+  shout: "shout.png"
+};
+
+const avatar = document.getElementById("avatar");
+let mode = "idle";
+avatar.src = imgs.idle;
+
+async function startMic(){
+  const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaStreamSource(stream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  src.connect(analyser);
+
+  const data = new Uint8Array(analyser.frequencyBinCount);
+
+  function loop(){
+    analyser.getByteFrequencyData(data);
+    const avg = data.reduce((a,b)=>a+b,0)/data.length;
+
+    let newMode = "idle";
+    if(avg > 60) newMode = "shout";
+    else if(avg > 20) newMode = "talk";
+
+    if(newMode !== mode){
+      mode = newMode;
+      avatar.src = imgs[mode];
+    }
+
+    avatar.className = (mode === "shout") ? "jump" : "";
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+}
+
+startMic();
+</script>
+
+</body>
+</html>
