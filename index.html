@@ -12,7 +12,6 @@ body{
   overflow:hidden;
 }
 
-/* キャラ */
 #avatar{
   max-width:260px;
   max-height:260px;
@@ -25,27 +24,22 @@ body{
   transform:translateY(-25px) scale(1.08);
 }
 
-/* UI（仮で残す） */
-#ui{
-  position:absolute;
+#debug{
+  position:fixed;
   top:10px;
   left:10px;
-  background:#e6ffe6;
-  padding:10px;
-  font-family:sans-serif;
+  color:red;
+  font-size:14px;
+  font-family:monospace;
+  background:white;
+  padding:5px;
 }
 </style>
 </head>
 
 <body>
 
-<div id="ui">
-  会話感度<br>
-  <input type="range" id="talkRange" min="1" max="30" value="8"><br><br>
-
-  絶叫感度<br>
-  <input type="range" id="shoutRange" min="10" max="100" value="35">
-</div>
+<div id="debug">loading...</div>
 
 <img id="avatar">
 
@@ -57,50 +51,68 @@ const imgs = {
 };
 
 const avatar = document.getElementById("avatar");
-const talkRange = document.getElementById("talkRange");
-const shoutRange = document.getElementById("shoutRange");
+const debug = document.getElementById("debug");
 
-let mode = "idle";
 avatar.src = imgs.idle;
 
+let mode = "idle";
+
+// マイク開始
 async function startMic(){
-  const stream = await navigator.mediaDevices.getUserMedia({audio:true});
 
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const src = ctx.createMediaStreamSource(stream);
-  const analyser = ctx.createAnalyser();
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      }
+    });
 
-  analyser.fftSize = 256;
-  src.connect(analyser);
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioCtx();
 
-  const data = new Uint8Array(analyser.frequencyBinCount);
+    await ctx.resume(); // ←重要
 
-  loop();
+    const src = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
 
-  function loop(){
-    analyser.getByteFrequencyData(data);
+    analyser.fftSize = 256;
+    src.connect(analyser);
 
-    const avg = data.reduce((a,b)=>a+b,0)/data.length;
+    const data = new Uint8Array(analyser.frequencyBinCount);
 
-    const talkThreshold = Number(talkRange.value);
-    const shoutThreshold = Number(shoutRange.value);
+    function loop(){
+      analyser.getByteFrequencyData(data);
 
-    let newMode = "idle";
+      const avg = data.reduce((a,b)=>a+b,0)/data.length;
 
-    if(avg > shoutThreshold){
-      newMode = "shout";
-    } else if(avg > talkThreshold){
-      newMode = "talk";
+      debug.innerText = "avg: " + avg.toFixed(2);
+
+      // ★かなり低感度にして確実に反応させる
+      let newMode = "idle";
+
+      if(avg > 20){
+        newMode = "shout";
+      } else if(avg > 5){
+        newMode = "talk";
+      }
+
+      if(newMode !== mode){
+        mode = newMode;
+        avatar.src = imgs[mode];
+      }
+
+      avatar.className = (mode === "shout") ? "jump" : "";
+
+      requestAnimationFrame(loop);
     }
 
-    if(newMode !== mode){
-      mode = newMode;
-      avatar.src = imgs[mode];
-    }
+    loop();
 
-    avatar.className = (mode === "shout") ? "jump" : "";
-
-    requestAnimationFrame(loop);
+  } catch(e){
+    debug.innerText = "mic error: " + e.message;
+    console.error(e);
   }
 }
 
