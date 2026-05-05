@@ -12,6 +12,7 @@ body{
   overflow:hidden;
 }
 
+/* キャラ */
 #avatar{
   max-width:260px;
   max-height:260px;
@@ -24,15 +25,27 @@ body{
   transform:translateY(-25px) scale(1.08);
 }
 
+/* UI（仮で残す） */
 #ui{
-  display:none;
+  position:absolute;
+  top:10px;
+  left:10px;
+  background:#e6ffe6;
+  padding:10px;
+  font-family:sans-serif;
 }
 </style>
 </head>
 
 <body>
 
-<div id="ui"></div>
+<div id="ui">
+  会話感度<br>
+  <input type="range" id="talkRange" min="1" max="30" value="8"><br><br>
+
+  絶叫感度<br>
+  <input type="range" id="shoutRange" min="10" max="100" value="35">
+</div>
 
 <img id="avatar">
 
@@ -44,26 +57,41 @@ const imgs = {
 };
 
 const avatar = document.getElementById("avatar");
+const talkRange = document.getElementById("talkRange");
+const shoutRange = document.getElementById("shoutRange");
+
 let mode = "idle";
 avatar.src = imgs.idle;
 
 async function startMic(){
   const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   const src = ctx.createMediaStreamSource(stream);
   const analyser = ctx.createAnalyser();
+
   analyser.fftSize = 256;
   src.connect(analyser);
 
   const data = new Uint8Array(analyser.frequencyBinCount);
 
+  loop();
+
   function loop(){
     analyser.getByteFrequencyData(data);
+
     const avg = data.reduce((a,b)=>a+b,0)/data.length;
 
+    const talkThreshold = Number(talkRange.value);
+    const shoutThreshold = Number(shoutRange.value);
+
     let newMode = "idle";
-    if(avg > 60) newMode = "shout";
-    else if(avg > 20) newMode = "talk";
+
+    if(avg > shoutThreshold){
+      newMode = "shout";
+    } else if(avg > talkThreshold){
+      newMode = "talk";
+    }
 
     if(newMode !== mode){
       mode = newMode;
@@ -74,8 +102,6 @@ async function startMic(){
 
     requestAnimationFrame(loop);
   }
-
-  loop();
 }
 
 startMic();
